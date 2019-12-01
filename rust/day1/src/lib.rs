@@ -14,10 +14,10 @@ impl Module {
     }
 
     pub fn required_fuel(&self) -> i32 {
-        Self::calculate_fuel(self.mass)
+        Self::get_required_fuel(self.mass)
     }
 
-    fn calculate_fuel(mass: i32) -> i32 {
+    fn get_required_fuel(mass: i32) -> i32 {
         max(mass / 3 - 2, 0)
     }
 
@@ -26,7 +26,7 @@ impl Module {
         let mut required_fuel = 0;
 
         while mass > 0 {
-            let fuel = Self::calculate_fuel(mass);
+            let fuel = Self::get_required_fuel(mass);
 
             required_fuel += fuel;
             mass = fuel;
