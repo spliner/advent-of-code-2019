@@ -23,11 +23,9 @@ impl Config {
         args.next();
 
         let part = match args.next() {
-            Some(raw_part) => {
-                match Part::new(raw_part) {
-                    Ok(p) => p,
-                    Err(e) => return Err(e),
-                }
+            Some(raw_part) => match Part::new(raw_part) {
+                Ok(p) => p,
+                Err(e) => return Err(e),
             },
             None => return Err(String::from("Didn't get a part")),
         };
@@ -37,6 +35,6 @@ impl Config {
             None => return Err(String::from("Didn't get a file name")),
         };
 
-        Ok(Config { filename, part, })
+        Ok(Config { filename, part })
     }
 }

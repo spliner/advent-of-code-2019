@@ -22,17 +22,16 @@ impl Module {
     }
 
     pub fn recursive_fuel(&self) -> i32 {
-        let mut mass = *&self.mass;
-        let mut required_fuel = 0;
+        Self::get_recursive_fuel(self.mass)
+    }
 
-        while mass > 0 {
-            let fuel = Self::get_required_fuel(mass);
-
-            required_fuel += fuel;
-            mass = fuel;
+    fn get_recursive_fuel(mass: i32) -> i32 {
+        if mass <= 0 {
+            return 0;
         }
 
-        required_fuel
+        let required_fuel = Self::get_required_fuel(mass);
+        return required_fuel + Self::get_recursive_fuel(required_fuel);
     }
 }
 
@@ -44,7 +43,7 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
         config::Part::Part1 => {
             let result = part1(&modules);
             println!("{}", result);
-        },
+        }
         config::Part::Part2 => {
             let result = part2(&modules);
             println!("{}", result);
@@ -55,7 +54,8 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
 }
 
 fn parse_modules(contents: &str) -> Vec<Module> {
-    contents.lines()
+    contents
+        .lines()
         .map(|l| l.trim().parse::<i32>().unwrap())
         .map(|m| Module::new(m))
         .collect()
