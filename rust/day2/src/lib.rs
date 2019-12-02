@@ -1,11 +1,11 @@
-use std::cmp::max;
+
 use std::error::Error;
 use std::fs;
 
 pub mod config;
 
 pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
-    let contents = fs::read_to_string(config.filename)?;
+    let _contents = fs::read_to_string(config.filename)?;
 
     match config.part {
         config::Part::Part1 => {
