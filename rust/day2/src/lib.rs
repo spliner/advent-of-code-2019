@@ -14,7 +14,8 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
             println!("{}", result);
         }
         config::Part::Part2 => {
-            // TODO: Part 2
+            let result = part2(&intcode, 19690720);
+            println!("{:?}", result);
         }
     }
 
@@ -29,18 +30,24 @@ fn parse_intcode(contents: &str) -> Vec<usize> {
 }
 
 fn part1(intcode: &Vec<usize>) -> usize {
-    let mut cloned = intcode.clone();
-    if intcode.len() > 1 {
-        cloned[1] = 12;
-    }
-
-    if intcode.len() > 2 {
-        cloned[2] = 2;
-    }
-
-    let result = run_intcode(&cloned);
+    let clone = intcode_with_parameters(intcode, 12, 2);
+    let result = run_intcode(&clone);
 
     result[0]
+}
+
+fn intcode_with_parameters(intcode: &Vec<usize>, noun: usize, verb: usize) -> Vec<usize> {
+    let mut clone = intcode.clone();
+
+    if clone.len() > 1 {
+        clone[1] = noun;
+    }
+
+    if clone.len() > 2 {
+        clone[2] = verb;
+    }
+
+    clone
 }
 
 fn run_intcode(intcode: &Vec<usize>) -> Vec<usize> {
@@ -78,6 +85,22 @@ fn run_intcode(intcode: &Vec<usize>) -> Vec<usize> {
     }
 
     intcode
+}
+
+// TODO: Do it in parallel
+fn part2(intcode: &Vec<usize>, expected_output: usize) -> Option<usize> {
+    for noun in 0..100 {
+        for verb in 0..100 {
+            let clone = intcode_with_parameters(intcode, noun, verb);
+            let result = run_intcode(&clone);
+
+            if result[0] == expected_output {
+                return Some(100 * noun + verb);
+            }
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
