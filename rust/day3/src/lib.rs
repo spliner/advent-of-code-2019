@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
+use std::iter::FromIterator;
 use std::str::FromStr;
 
 use crate::config::Part;
@@ -94,6 +95,38 @@ impl FromStr for Movement {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+struct Wire {
+    current_position: Point,
+    path: Vec<Point>,
+}
+
+impl Wire {
+    fn new(initial_position: Point) -> Self {
+        Self { current_position: initial_position, path: Vec::new(), }
+    }
+
+    fn apply(&mut self, movement: &Movement) {
+        for p in movement.all_points(&self.current_position).iter().skip(1) {
+            self.path.push(p.clone());
+        }
+
+        if self.path.len() > 0 {
+            self.current_position = self.path[self.path.len() - 1].clone();
+        }
+    }
+
+    fn steps_to(&self, point: &Point) -> Option<usize> {
+        for (i, p) in self.path.iter().enumerate() {
+            if p == point {
+                return Some(i + 1);
+            }
+        }
+
+        None
+    }
+}
+
 pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(config.filename)?;
     let input = parse_input(&contents);
@@ -104,7 +137,8 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
             println!("{:?}", result);
         },
         Part::Part2 => {
-            // TODO: Part 2
+            let result = part2(&input);
+            println!("{:?}", result);
         }
     }
 
@@ -161,6 +195,35 @@ fn part1(input: &(Point, Vec<Vec<Movement>>)) -> i32 {
 
 }
 
+fn part2(input: &(Point, Vec<Vec<Movement>>)) -> usize {
+    let (origin, movements) = input;
+    let mut wires = movements
+        .iter()
+        .map(|movements| {
+            let mut wire = Wire::new(origin.clone());
+
+            for movement in movements {
+                wire.apply(movement);
+            }
+
+            wire
+        });
+
+    let wire1 = wires.next().unwrap();
+    let wire2 = wires.next().unwrap();
+
+    let s1: HashSet<Point> = HashSet::from_iter(wire1.path.iter().cloned());
+    let s2: HashSet<Point> = HashSet::from_iter(wire2.path.iter().cloned());
+
+    s1.intersection(&s2)
+        .filter(|p| p.x != 0 && p.y != 0)
+        .map(|p| {
+            wire1.steps_to(p).unwrap() + wire2.steps_to(p).unwrap()
+        })
+        .min()
+        .unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,5 +259,29 @@ U62,R66,U55,R34,D71,R55,D58,R83";
 R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51
 U98,R91,D20,R16,D67,R40,U7,R15,U6,R7";
         assert_eq!(135, part1(&parse_input(&input)));
+    }
+
+    #[test]
+    fn part2_example_1_should_return_30() {
+        let input = "\
+R8,U5,L5,D3
+U7,R6,D4,L4";
+        assert_eq!(30, part2(&parse_input(&input)));
+    }
+
+    #[test]
+    fn part2_example_2_should_return_610() {
+        let input = "\
+R75,D30,R83,U83,L12,D49,R71,U7,L72
+U62,R66,U55,R34,D71,R55,D58,R83";
+        assert_eq!(610, part2(&parse_input(&input)));
+    }
+
+    #[test]
+    fn part2_example_3_should_return_410() {
+        let input = "\
+R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51
+U98,R91,D20,R16,D67,R40,U7,R15,U6,R7";
+        assert_eq!(410, part2(&parse_input(&input)));
     }
 }
