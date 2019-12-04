@@ -60,22 +60,22 @@ impl Movement {
 
         match self.direction {
             Direction::Up => {
-                for i in 0..=self.count {
+                for i in 1..=self.count {
                     points.push(Point::new(origin.x, origin.y + i));
                 }
             },
             Direction::Down => {
-                for i in 0..=self.count {
+                for i in 1..=self.count {
                     points.push(Point::new(origin.x, origin.y - i));
                 }
             },
             Direction::Left => {
-                for i in 0..=self.count {
+                for i in 1..=self.count {
                     points.push(Point::new(origin.x - i, origin.y));
                 }
             },
             Direction::Right => {
-                for i in 0..=self.count {
+                for i in 1..=self.count {
                     points.push(Point::new(origin.x + i, origin.y));
                 }
             },
@@ -105,12 +105,12 @@ impl Wire {
     fn new(initial_position: Point) -> Self {
         Self {
             current_position: initial_position.clone(),
-            path: Vec::new(),
+            path: vec![initial_position.clone()]
         }
     }
 
     fn apply(&mut self, movement: &Movement) {
-        for p in movement.all_points(&self.current_position).iter().skip(1) {
+        for p in movement.all_points(&self.current_position) {
             self.path.push(p.clone());
         }
 
@@ -122,7 +122,7 @@ impl Wire {
     fn steps_to(&self, point: &Point) -> Option<usize> {
         for (i, p) in self.path.iter().enumerate() {
             if p == point {
-                return Some(i + 1);
+                return Some(i);
             }
         }
 
