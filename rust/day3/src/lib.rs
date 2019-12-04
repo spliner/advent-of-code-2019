@@ -151,8 +151,7 @@ fn parse_input(input: &str) -> (Point, Vec<Vec<Movement>>) {
         .trim()
         .lines()
         .map(|l| {
-            l
-                .split(",")
+            l.split(",")
                 .map(|s| s.trim().parse::<Movement>().unwrap())
                 .collect()
         })
