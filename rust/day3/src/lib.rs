@@ -103,7 +103,10 @@ struct Wire {
 
 impl Wire {
     fn new(initial_position: Point) -> Self {
-        Self { current_position: initial_position, path: Vec::new(), }
+        Self {
+            current_position: initial_position.clone(),
+            path: Vec::new(),
+        }
     }
 
     fn apply(&mut self, movement: &Movement) {
@@ -145,46 +148,42 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn parse_input(input: &str) -> (Point, Vec<Vec<Movement>>) {
+fn parse_input(input: &str) -> (Point, Vec<Wire>) {
     let origin = Point::new(0, 0);
-    let movements = input
+    let wires = input
         .trim()
         .lines()
         .map(|l| {
-            l.split(",")
-                .map(|s| s.trim().parse::<Movement>().unwrap())
-                .collect()
-        })
-        .collect();
-    (origin, movements)
-}
-
-fn part1(input: &(Point, Vec<Vec<Movement>>)) -> i32 {
-    let (origin, movements) = input;
-    let mut sets = movements
-        .iter()
-        .map(|movements| {
-            let mut current_origin = origin.clone();
-            let mut history: HashSet<Point> = HashSet::new();
+            let mut wire = Wire::new(origin.clone());
+            let movements: Vec<Movement> = l.split(",")
+                .map(|s| {
+                    s.trim().parse::<Movement>().unwrap()
+                })
+                .collect();
 
             for movement in movements {
-                let points = movement.all_points(&current_origin);
-                let next_origin = points[points.len() - 1].clone();
-
-                for point in points {
-                    history.insert(point);
-                }
-
-                current_origin = next_origin;
+                wire.apply(&movement);
             }
 
-            history
-        });
+            wire
+        })
+        .collect();
 
-    let s1 = sets.next().unwrap();
-    let s2 = sets.next().unwrap();
+    (origin, wires)
+}
 
-    s1.intersection(&s2)
+fn part1(input: &(Point, Vec<Wire>)) -> i32 {
+    let (origin, wires) = input;
+
+    let sets: Vec<HashSet<Point>> = wires
+        .iter()
+        .map(|w| HashSet::from_iter(w.path.iter().cloned()))
+        .collect();
+
+    let s1 = &sets[0];
+    let s2 = &sets[1];
+
+    s1.intersection(s2)
         .filter(|p| p.x != 0 && p.y != 0)
         .map(|p| {
             (origin.x - p.x).abs() + (origin.y - p.y).abs()
@@ -194,22 +193,11 @@ fn part1(input: &(Point, Vec<Vec<Movement>>)) -> i32 {
 
 }
 
-fn part2(input: &(Point, Vec<Vec<Movement>>)) -> usize {
-    let (origin, movements) = input;
-    let mut wires = movements
-        .iter()
-        .map(|movements| {
-            let mut wire = Wire::new(origin.clone());
+fn part2(input: &(Point, Vec<Wire>)) -> usize {
+    let (_, wires) = input;
 
-            for movement in movements {
-                wire.apply(movement);
-            }
-
-            wire
-        });
-
-    let wire1 = wires.next().unwrap();
-    let wire2 = wires.next().unwrap();
+    let wire1 = &wires[0];
+    let wire2 = &wires[1];
 
     let s1: HashSet<Point> = HashSet::from_iter(wire1.path.iter().cloned());
     let s2: HashSet<Point> = HashSet::from_iter(wire2.path.iter().cloned());
