@@ -188,7 +188,7 @@ fn part1(input: &(Point, Vec<Vec<Movement>>)) -> i32 {
     s1.intersection(&s2)
         .filter(|p| p.x != 0 && p.y != 0)
         .map(|p| {
-            p.x.abs() + p.y.abs()
+            (origin.x - p.x).abs() + (origin.y - p.y).abs()
         })
         .min()
         .unwrap()
