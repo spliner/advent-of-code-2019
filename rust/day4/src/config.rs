@@ -1,13 +1,13 @@
 pub enum Part {
-    Part1,
-    Part2,
+    PartOne,
+    PartTwo,
 }
 
 impl Part {
     pub fn new(raw_value: String) -> Result<Self, String> {
         match raw_value.to_lowercase().as_str() {
-            "part1" => Ok(Part::Part1),
-            "part2" => Ok(Part::Part2),
+            "part1" => Ok(Part::PartOne),
+            "part2" => Ok(Part::PartTwo),
             _ => Err(format!("Invalid part: {}", raw_value)),
         }
     }
