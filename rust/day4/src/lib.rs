@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fs;
 use std::ops::RangeInclusive;
+use std::collections::HashMap;
 
 pub mod config;
 
@@ -16,7 +17,8 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
             println!("{}", count);
         }
         config::Part::PartTwo => {
-            println!("Not yet!");
+            let count = part_two(range);
+            println!("{}", count);
         }
     }
 
@@ -36,29 +38,55 @@ fn part_one(range: (i32, i32)) -> usize {
     RangeInclusive::new(start, end)
         .filter(|n| {
             let password = n.to_string();
-            is_valid(&password)
+            is_valid(&password, false)
         })
         .count()
 }
 
-fn is_valid(password: &Password) -> bool {
+fn part_two(range: (i32, i32)) -> usize {
+    let (start, end) = range;
+    RangeInclusive::new(start, end)
+        .filter(|n| {
+            let password = n.to_string();
+            is_valid(&password, true)
+        })
+        .count()
+}
+
+fn is_valid(password: &Password, must_be_two: bool) -> bool {
     if password.len() != 6 {
         return false;
     }
 
-    let mut has_same_adjacent_digits = false;
-    let mut never_decreases = true;
-
     let mut chars = password.chars();
     let mut previous_char = chars.next().unwrap();
 
+    let mut char_counts = HashMap::new();
+    let mut increase_count = |c| {
+        let count = char_counts.entry(c).or_insert(0);
+        *count += 1;
+    };
+
+    increase_count(previous_char);
+
     for current_char in chars {
-        has_same_adjacent_digits = has_same_adjacent_digits || current_char == previous_char;
-        never_decreases = never_decreases && current_char >= previous_char;
+        if current_char < previous_char {
+            return false;
+        }
+
+        increase_count(current_char);
+
         previous_char = current_char;
     }
 
-    has_same_adjacent_digits && never_decreases
+    char_counts.iter()
+        .any(|(_, v)| {
+            if must_be_two {
+                v == &2
+            } else {
+                v > &1
+            }
+        })
 }
 
 #[cfg(test)]
@@ -66,18 +94,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn is_valid_example_one_should_be_true() {
-        assert_eq!(true, is_valid(&String::from("111111")));
+    fn is_valid_part_one_example_one_should_be_true() {
+        assert_eq!(true, is_valid(&String::from("111111"), false));
     }
 
     #[test]
-    fn is_valid_example_two_should_be_true() {
-        assert_eq!(false, is_valid(&String::from("223450")));
+    fn is_valid_part_one_example_two_should_be_false() {
+        assert_eq!(false, is_valid(&String::from("223450"), false));
     }
 
     #[test]
-    fn is_valid_example_three_should_be_true() {
-        assert_eq!(false, is_valid(&String::from("123789")));
+    fn is_valid_part_one_example_three_should_be_false() {
+        assert_eq!(false, is_valid(&String::from("123789"), false));
+    }
+
+    #[test]
+    fn is_valid_part_two_example_one_should_be_true() {
+        assert_eq!(true, is_valid(&String::from("112233"), true));
+    }
+
+    #[test]
+    fn is_valid_part_two_example_two_should_be_false() {
+        assert_eq!(false, is_valid(&String::from("123444"), true));
+    }
+
+    #[test]
+    fn is_valid_part_two_example_three_should_be_true() {
+        assert_eq!(true, is_valid(&String::from("111122"), true));
     }
 }
 
