@@ -10,7 +10,7 @@ enum ParameterMode {
 }
 
 #[derive(Debug, PartialEq)]
-enum Instruction {
+enum Opcode {
     Add,
     Multiply,
     Set,
@@ -26,27 +26,27 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
 
     match config.part {
         config::Part::PartOne => {
-            part_one(&program, 1)?;
+            compute(&program, 1)?;
         }
         config::Part::PartTwo => {
-            // TODO: Part two
+            compute(&program, 5)?;
         }
     }
 
     Ok(())
 }
 
-fn part_one(program: &Vec<i32>, input: i32) -> Result<Vec<i32>, String> {
+fn compute(program: &Vec<i32>, input: i32) -> Result<Vec<i32>, String> {
     let mut program = program.clone();
     let mut i = 0;
 
     while i < program.len() {
         println!("{}", i);
         let operation = program[i];
-        let (instruction, first_mode, second_mode) = parse_operation(operation)?;
+        let (opcode, first_mode, second_mode) = parse_operation(operation)?;
 
-        match instruction {
-            Instruction::Add => {
+        match opcode {
+            Opcode::Add => {
                 let first_parameter = get_parameter(i + 1, &first_mode, &program);
                 let second_parameter = get_parameter(i + 2, &second_mode, &program);
                 let result_index = program[i + 3] as usize;
@@ -57,7 +57,7 @@ fn part_one(program: &Vec<i32>, input: i32) -> Result<Vec<i32>, String> {
 
                 i += 4;
             },
-            Instruction::Multiply => {
+            Opcode::Multiply => {
                 let first_parameter = get_parameter(i + 1, &first_mode, &program);
                 let second_parameter = get_parameter(i + 2, &second_mode, &program);
                 let result_index = program[i + 3] as usize;
@@ -68,13 +68,13 @@ fn part_one(program: &Vec<i32>, input: i32) -> Result<Vec<i32>, String> {
 
                 i += 4;
             },
-            Instruction::Set => {
+            Opcode::Set => {
                 let result_index = program[i + 1] as usize;
                 println!("Set {}", result_index);
                 program[result_index] = input;
                 i += 2;
             },
-            Instruction::Output => {
+            Opcode::Output => {
                 let value = match first_mode {
                     ParameterMode::Position => {
                         let index = program[i + 1] as usize;
@@ -89,7 +89,7 @@ fn part_one(program: &Vec<i32>, input: i32) -> Result<Vec<i32>, String> {
 
                 i += 2;
             },
-            Instruction::Halt => {
+            Opcode::Halt => {
                 break;
             },
         }
@@ -98,22 +98,22 @@ fn part_one(program: &Vec<i32>, input: i32) -> Result<Vec<i32>, String> {
     Ok(program)
 }
 
-fn parse_operation(operation: i32) -> Result<(Instruction, ParameterMode, ParameterMode), String> {
-    let instruction = parse_instruction(operation % 100)?;
+fn parse_operation(operation: i32) -> Result<(Opcode, ParameterMode, ParameterMode), String> {
+    let opcode = parse_opcode(operation % 100)?;
     let first_parameter_mode = parse_mode(operation / 100 % 10)?;
     let second_parameter_mode = parse_mode(operation / 1000 % 10)?;
 
-    Ok((instruction, first_parameter_mode, second_parameter_mode))
+    Ok((opcode, first_parameter_mode, second_parameter_mode))
 }
 
-fn parse_instruction(instruction: i32) -> Result<Instruction, String> {
-    match instruction % 100 {
-        1 => Ok(Instruction::Add),
-        2 => Ok(Instruction::Multiply),
-        3 => Ok(Instruction::Set),
-        4 => Ok(Instruction::Output),
-        99 => Ok(Instruction::Halt),
-        _ => Err(format!("Invalid instruction: {}", instruction))
+fn parse_opcode(opcode: i32) -> Result<Opcode, String> {
+    match opcode % 100 {
+        1 => Ok(Opcode::Add),
+        2 => Ok(Opcode::Multiply),
+        3 => Ok(Opcode::Set),
+        4 => Ok(Opcode::Output),
+        99 => Ok(Opcode::Halt),
+        _ => Err(format!("Invalid opcode: {}", opcode))
     }
 }
 
@@ -145,7 +145,7 @@ mod tests {
     fn parse_operation_test() {
         let operation = 1002;
         assert_eq!(
-            Ok((Instruction::Multiply, ParameterMode::Position, ParameterMode::Immediate)),
+            Ok((Opcode::Multiply, ParameterMode::Position, ParameterMode::Immediate)),
             parse_operation(operation));
     }
 
@@ -155,7 +155,7 @@ mod tests {
 
         let expected = vec![1101, 100, -1, 4, 99];
 
-        assert_eq!(Ok(expected), part_one(&program, 1));
+        assert_eq!(Ok(expected), compute(&program, 1));
     }
 
     #[test]
@@ -164,7 +164,7 @@ mod tests {
 
         let expected = vec![2, 0, 0, 0, 99];
 
-        assert_eq!(Ok(expected), part_one(&program, 1));
+        assert_eq!(Ok(expected), compute(&program, 1));
     }
 
     #[test]
@@ -173,7 +173,7 @@ mod tests {
 
         let expected = vec![2, 3, 0, 6, 99];
 
-        assert_eq!(Ok(expected), part_one(&program, 1));
+        assert_eq!(Ok(expected), compute(&program, 1));
     }
 
     #[test]
@@ -182,7 +182,7 @@ mod tests {
 
         let expected = vec![2, 4, 4, 5, 99, 9801];
 
-        assert_eq!(Ok(expected), part_one(&program, 1));
+        assert_eq!(Ok(expected), compute(&program, 1));
     }
 
     #[test]
@@ -191,7 +191,7 @@ mod tests {
 
         let expected = vec![30, 1, 1, 4, 2, 5, 6, 0, 99];
 
-        assert_eq!(Ok(expected), part_one(&program, 1));
+        assert_eq!(Ok(expected), compute(&program, 1));
     }
 
     #[test]
@@ -200,7 +200,7 @@ mod tests {
 
         let expected = vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50];
 
-        assert_eq!(Ok(expected), part_one(&program, 1));
+        assert_eq!(Ok(expected), compute(&program, 1));
     }
 
     #[test]
@@ -209,6 +209,6 @@ mod tests {
 
         let expected = vec![1002, 4, 3, 4, 99];
 
-        assert_eq!(Ok(expected), part_one(&program, 1));
+        assert_eq!(Ok(expected), compute(&program, 1));
     }
 }
