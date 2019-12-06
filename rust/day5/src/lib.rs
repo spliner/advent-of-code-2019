@@ -3,273 +3,30 @@ use std::fs;
 
 pub mod config;
 
+#[derive(Debug, PartialEq)]
 enum ParameterMode {
     Position,
     Immediate,
 }
 
-impl ParameterMode {
-    fn parse(value: i32) -> Result<ParameterMode, String> {
-        match value as usize {
-            0 => Ok(ParameterMode::Position),
-            1 => Ok(ParameterMode::Immediate),
-            _ => Err(format!("Invalid parameter mode: {}", value)),
-        }
-    }
-
-    fn effective_value(&self, value: usize, instructions: &Vec<i32>) -> i32 {
-        match self {
-            ParameterMode::Position => {
-                let position = instructions[value] as usize;
-                instructions[position]
-            },
-            ParameterMode::Immediate => {
-                instructions[value]
-            },
-        }
-    }
-}
-
-trait Instruction {
-    fn execute(&self, state: &mut ProgramExecutionState) -> Option<i32>;
-    fn next_instruction_position(&self, index: usize) -> Option<usize>;
-}
-
-struct AddInstruction {
-    parameter_one_mode: ParameterMode,
-    parameter_two_mode: ParameterMode,
-}
-
-impl Instruction for AddInstruction {
-    fn execute(&self, state: &mut ProgramExecutionState) -> Option<i32> {
-        let a = self.parameter_one_mode
-            .effective_value(
-                state.index + 1,
-                &state.instructions);
-        let b = self.parameter_two_mode
-            .effective_value(
-                state.index + 2,
-                &state.instructions);
-
-        let index = state.instructions[state.index + 3] as usize;
-        println!("{} + {} = {} in {}", a, b, a + b, index);
-        state.instructions[index] = a + b;
-
-        None
-    }
-
-    fn next_instruction_position(&self, index: usize) -> Option<usize> {
-        Some(index + 4)
-    }
-}
-
-struct MultiplyInstruction {
-    parameter_one_mode: ParameterMode,
-    parameter_two_mode: ParameterMode,
-}
-
-impl Instruction for MultiplyInstruction {
-    fn execute(&self, state: &mut ProgramExecutionState) -> Option<i32> {
-        let a = self.parameter_one_mode
-            .effective_value(
-                state.index + 1,
-                &state.instructions);
-        let b = self.parameter_two_mode
-            .effective_value(
-                state.index + 2,
-                &state.instructions);
-
-        let index = state.instructions[state.index + 3] as usize;
-        println!("{} * {} = {} in {}", a, b, a * b, index);
-        state.instructions[index] = a * b;
-
-        None
-    }
-
-    fn next_instruction_position(&self, index: usize) -> Option<usize> {
-        Some(index + 4)
-    }
-}
-
-struct SetInstruction {}
-
-impl Instruction for SetInstruction {
-    fn execute(&self, state: &mut ProgramExecutionState) -> Option<i32> {
-        let address = state.instructions[state.index + 1] as usize;
-
-        println!("{} in {}", state.input, address);
-
-        state.instructions[address] = state.input;
-
-        None
-    }
-
-    fn next_instruction_position(&self, index: usize) -> Option<usize> {
-        Some(index + 2)
-    }
-}
-
-struct OutputInstruction {
-    parameter_mode: ParameterMode,
-}
-
-impl Instruction for OutputInstruction {
-    fn execute(&self, state: &mut ProgramExecutionState) -> Option<i32> {
-        let address = self.parameter_mode
-            .effective_value(
-                state.index + 1,
-                &state.instructions);
-
-        Some(state.instructions[address as usize])
-    }
-
-    fn next_instruction_position(&self, index: usize) -> Option<usize> {
-        Some(index + 2)
-    }
-}
-
-struct HaltInstruction {
-}
-
-impl Instruction for HaltInstruction {
-    fn execute(&self, _state: &mut ProgramExecutionState) -> Option<i32> {
-        None
-    }
-
-    fn next_instruction_position(&self, _index: usize) -> Option<usize> {
-        None
-    }
-}
-
-trait Program {
-    fn input(&self) -> i32;
-    fn instructions(&self) -> &Vec<i32>;
-    fn execute(&self) -> ExecutionResult;
-}
-
-struct TestProgram {
-    input: i32,
-    instructions: Vec<i32>,
-}
-
-impl TestProgram {
-    fn new(input: i32, instructions: Vec<i32>) -> Self {
-        Self {
-            input,
-            instructions
-        }
-    }
-}
-
-impl Program for TestProgram {
-    fn input(&self) -> i32 {
-        self.input
-    }
-
-    fn instructions(&self) -> &Vec<i32> {
-        &self.instructions
-    }
-
-    fn execute(&self) -> ExecutionResult {
-        let state = ProgramExecutionState {
-            index: 0,
-            input: self.input,
-            instructions: self.instructions.clone(),
-        };
-
-        let mut outputs = Vec::new();
-        let mut foo = Vec::new();
-        state
-            .for_each(|(state, output)|  {
-                if let Some(o) = output {
-                    outputs.push(o);
-                }
-
-                foo = state;
-            });
-
-        ExecutionResult {
-            outputs,
-            final_state: foo,
-        }
-    }
-}
-
-struct ProgramExecutionState {
-    index: usize,
-    input: i32,
-    instructions: Vec<i32>,
-}
-
-impl Iterator for ProgramExecutionState {
-    type Item = (Vec<i32>, Option<i32>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let raw_instruction = self.instructions[self.index];
-        println!("Instruction {} at {}", raw_instruction, self.index);
-        let opcode = raw_instruction % 100;
-        let parameter_one_mode = ParameterMode::parse(raw_instruction / 100 % 10).unwrap();
-        let parameter_two_mode = ParameterMode::parse(raw_instruction / 1000 % 10).unwrap();
-        let _parameter_three_mode = ParameterMode::parse(raw_instruction / 10000 % 10).unwrap();
-
-        let instruction: Box<dyn Instruction> = match opcode {
-            1 => {
-                Box::new(AddInstruction {
-                    parameter_one_mode,
-                    parameter_two_mode,
-                })
-            },
-            2 => {
-                Box::new(MultiplyInstruction {
-                    parameter_one_mode,
-                    parameter_two_mode,
-                })
-            },
-            3 => {
-                Box::new(SetInstruction {})
-            },
-            4 => {
-                Box::new(OutputInstruction {
-                    parameter_mode: parameter_one_mode,
-                })
-            },
-            99 => {
-                Box::new(HaltInstruction {})
-            }
-            _ => {
-                // TODO: Don't actually panic
-                panic!("This shouldn't happen")
-            },
-        };
-
-        match instruction.next_instruction_position(self.index) {
-            Some(i) => {
-                let output = instruction.execute(self);
-                self.index = i;
-                Some((self.instructions.clone(), output))
-            },
-            None => None
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
-struct ExecutionResult {
-    outputs: Vec<i32>,
-    final_state: Vec<i32>,
+enum Instruction {
+    Add,
+    Multiply,
+    Set,
+    Output,
+    Halt,
 }
 
 pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
-    let instructions: Vec<i32> = fs::read_to_string(config.filename)?
+    let program: Vec<i32> = fs::read_to_string(config.filename)?
         .split(",")
         .map(|s| s.trim().parse::<i32>().unwrap())
         .collect();
-    let program = TestProgram::new(1, instructions);
 
     match config.part {
         config::Part::PartOne => {
-            let output = program.execute();
-            println!("{:?}", output);
+            part_one(&program, 1)?;
         }
         config::Part::PartTwo => {
             // TODO: Part two
@@ -279,29 +36,179 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn part_one(program: &Vec<i32>, input: i32) -> Result<Vec<i32>, String> {
+    let mut program = program.clone();
+    let mut i = 0;
+
+    while i < program.len() {
+        println!("{}", i);
+        let operation = program[i];
+        let (instruction, first_mode, second_mode) = parse_operation(operation)?;
+
+        match instruction {
+            Instruction::Add => {
+                let first_parameter = get_parameter(i + 1, &first_mode, &program);
+                let second_parameter = get_parameter(i + 2, &second_mode, &program);
+                let result_index = program[i + 3] as usize;
+
+                println!("{} + {} in {}", first_parameter, second_parameter, result_index);
+
+                program[result_index] = first_parameter + second_parameter;
+
+                i += 4;
+            },
+            Instruction::Multiply => {
+                let first_parameter = get_parameter(i + 1, &first_mode, &program);
+                let second_parameter = get_parameter(i + 2, &second_mode, &program);
+                let result_index = program[i + 3] as usize;
+
+                println!("{} * {} in {}", first_parameter, second_parameter, result_index);
+
+                program[result_index] = first_parameter * second_parameter;
+
+                i += 4;
+            },
+            Instruction::Set => {
+                let result_index = program[i + 1] as usize;
+                println!("Set {}", result_index);
+                program[result_index] = input;
+                i += 2;
+            },
+            Instruction::Output => {
+                let value = match first_mode {
+                    ParameterMode::Position => {
+                        let index = program[i + 1] as usize;
+                        program[index]
+                    },
+                    ParameterMode::Immediate => {
+                        program[i + 1]
+                    }
+                };
+
+                println!("Output: {}", value);
+
+                i += 2;
+            },
+            Instruction::Halt => {
+                break;
+            },
+        }
+    }
+
+    Ok(program)
+}
+
+fn parse_operation(operation: i32) -> Result<(Instruction, ParameterMode, ParameterMode), String> {
+    let instruction = parse_instruction(operation % 100)?;
+    let first_parameter_mode = parse_mode(operation / 100 % 10)?;
+    let second_parameter_mode = parse_mode(operation / 1000 % 10)?;
+
+    Ok((instruction, first_parameter_mode, second_parameter_mode))
+}
+
+fn parse_instruction(instruction: i32) -> Result<Instruction, String> {
+    match instruction % 100 {
+        1 => Ok(Instruction::Add),
+        2 => Ok(Instruction::Multiply),
+        3 => Ok(Instruction::Set),
+        4 => Ok(Instruction::Output),
+        99 => Ok(Instruction::Halt),
+        _ => Err(format!("Invalid instruction: {}", instruction))
+    }
+}
+
+fn parse_mode(mode: i32) -> Result<ParameterMode, String> {
+    match mode {
+        0 => Ok(ParameterMode::Position),
+        1 => Ok(ParameterMode::Immediate),
+        _ => Err(format!("Invalid param mode: {}", mode)),
+    }
+}
+
+fn get_parameter(index: usize, mode: &ParameterMode, program: &Vec<i32>) -> i32 {
+    match mode {
+        ParameterMode::Position => {
+            let index = program[index] as usize;
+            program[index]
+        },
+        ParameterMode::Immediate => {
+            program[index]
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{Program, TestProgram};
+    use super::*;
 
     #[test]
-    fn execute_program_example_one() {
-        let instructions = vec![1101, 100, -1, 4, 0];
-        let program = TestProgram::new(1, instructions);
-        let result = program.execute().final_state;
-
-        let expected = vec![1101, 100, -1, 4, 99];
-
-        assert_eq!(expected, result);
+    fn parse_operation_test() {
+        let operation = 1002;
+        assert_eq!(
+            Ok((Instruction::Multiply, ParameterMode::Position, ParameterMode::Immediate)),
+            parse_operation(operation));
     }
 
     #[test]
-    fn execute_program_negative_value() {
-        let instructions = vec![1101, -100, -1, 5, 99, 1];
-        let program = TestProgram::new(1, instructions);
-        let result = program.execute().final_state;
+    fn part_one_1() {
+        let program = vec![1101, 100, -1, 4, 0];
 
-        let expected = vec![1101, -100, -1, 5, 99, -101];
+        let expected = vec![1101, 100, -1, 4, 99];
 
-        assert_eq!(expected, result);
+        assert_eq!(Ok(expected), part_one(&program, 1));
+    }
+
+    #[test]
+    fn part_one_2() {
+        let program = vec![1, 0, 0, 0, 99];
+
+        let expected = vec![2, 0, 0, 0, 99];
+
+        assert_eq!(Ok(expected), part_one(&program, 1));
+    }
+
+    #[test]
+    fn part_one_3() {
+        let program = vec![2, 3, 0, 3, 99];
+
+        let expected = vec![2, 3, 0, 6, 99];
+
+        assert_eq!(Ok(expected), part_one(&program, 1));
+    }
+
+    #[test]
+    fn part_one_4() {
+        let program = vec![2, 4, 4, 5, 99, 0];
+
+        let expected = vec![2, 4, 4, 5, 99, 9801];
+
+        assert_eq!(Ok(expected), part_one(&program, 1));
+    }
+
+    #[test]
+    fn part_one_5() {
+        let program = vec![1, 1, 1, 4, 99, 5, 6, 0, 99];
+
+        let expected = vec![30, 1, 1, 4, 2, 5, 6, 0, 99];
+
+        assert_eq!(Ok(expected), part_one(&program, 1));
+    }
+
+    #[test]
+    fn part_one_6() {
+        let program = vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50];
+
+        let expected = vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50];
+
+        assert_eq!(Ok(expected), part_one(&program, 1));
+    }
+
+    #[test]
+    fn part_one_7() {
+        let program = vec![1002, 4, 3, 4, 33];
+
+        let expected = vec![1002, 4, 3, 4, 99];
+
+        assert_eq!(Ok(expected), part_one(&program, 1));
     }
 }
