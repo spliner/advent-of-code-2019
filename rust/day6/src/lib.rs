@@ -1,6 +1,5 @@
 use std::error::Error;
 
-
 pub mod config;
 
 pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
