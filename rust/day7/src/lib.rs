@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs;
 use std::iter::FromIterator;
@@ -91,7 +91,41 @@ fn calculate_signal(program: &Vec<i32>, phase_settings: &Vec<i32>) -> Result<i32
     Ok(current_input)
 }
 
+fn calculate_signal_with_feedback(
+    program: &Vec<i32>,
+    phase_settings: &Vec<i32>,
+) -> Result<i32, String> {
+    let phase_length = phase_settings.len();
+    let mut states = HashMap::new();
+
+    // Initialize thrusters
+    for i in 0..phase_length {
+        let (_, state) = compute(&program, &vec![phase_settings[i]])?;
+        states.insert(i, state.clone());
+    }
+
+    let mut current_input = 0;
+    let mut index = 0;
+
+    loop {
+        let state = states.get(&index).unwrap();
+        let (output, new_state) = compute(state, &vec![current_input])?;
+        if let Some(o) = output {
+            current_input = o;
+            *states.get_mut(&index).unwrap() = new_state.clone();
+            index = (index + 1) % phase_length;
+        } else {
+            return Ok(current_input);
+        }
+    }
+
+    Ok(current_input)
+}
+
 fn compute(program: &Vec<i32>, inputs: &Vec<i32>) -> Result<(Option<i32>, Vec<i32>), String> {
+    println!("{:?}", program);
+    println!("{:?}", inputs);
+
     let mut inputs = inputs.iter().cycle();
     let mut program = program.clone();
     let mut i = 0;
@@ -395,5 +429,19 @@ mod tests {
         ];
 
         assert_eq!(Ok(65210), part_one(&program));
+    }
+
+    #[test]
+    fn signal_feedback_1() {
+        let program = vec![
+            3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1,
+            28, 1005, 28, 6, 99, 0, 0, 5,
+        ];
+        let phase_settings = vec![9, 8, 7, 6, 5];
+
+        assert_eq!(
+            Ok(139629729),
+            calculate_signal_with_feedback(&program, &phase_settings)
+        );
     }
 }
