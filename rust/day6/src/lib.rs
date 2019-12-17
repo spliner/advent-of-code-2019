@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs;
 
@@ -6,22 +6,25 @@ pub mod config;
 
 pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
     let input = fs::read_to_string(config.filename)?;
-    let orbits = parse_orbits(&input);
+
 
     match config.part {
         config::Part::PartOne => {
+            let orbits = parse_orbits_part_one(&input);
             let result = part_one(&orbits);
             println!("{}", result);
         }
         config::Part::PartTwo => {
-            println!("Part two will go here");
+            let orbits = parse_orbits_part_two(&input);
+            let result = part_two(&orbits);
+            println!("{}", result);
         }
     }
 
     Ok(())
 }
 
-fn parse_orbits(input: &str) -> HashMap<String, Vec<String>> {
+fn parse_orbits_part_one(input: &str) -> HashMap<String, Vec<String>> {
     let orbits = input
         .lines()
         .map(|s| {
@@ -62,6 +65,44 @@ fn part_one_rec(parent_name: &String, current_distance: usize, orbits: &HashMap<
     }
 }
 
+fn parse_orbits_part_two(input: &str) -> HashMap<String, String> {
+    input
+        .lines()
+        .map(|s| {
+            let orbit = s.split(")").map(|x| x.trim()).collect::<Vec<&str>>();
+            (orbit[1].into(), orbit[0].into())
+        })
+        .collect()
+}
+
+fn part_two(orbits: &HashMap<String, String>) -> usize {
+    let my_path = get_path("COM", "YOU", orbits);
+    let santa_path = get_path("COM", "SAN", orbits);
+
+    let my_difference = my_path.difference(&santa_path);
+    let santa_difference = santa_path.difference(&my_path);
+
+    my_difference.count() - 1 + santa_difference.count() - 1
+}
+
+fn get_path(source: &str, destination: &str, orbits: &HashMap<String, String>) -> HashSet<String> {
+    let mut path = HashSet::new();
+    let mut current_node = destination;
+
+    while current_node != source {
+        path.insert(current_node.into());
+
+        match orbits.get(current_node) {
+            Some(n) => current_node = n,
+            None => break,
+        };
+    }
+
+    path.insert(source.into());
+
+    path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,8 +122,30 @@ E)J
 J)K
 K)L
 ";
-        let orbits = parse_orbits(&input);
+        let orbits = parse_orbits_part_one(&input);
 
         assert_eq!(42, part_one(&orbits));
+    }
+
+    #[test]
+    fn part_two_example_one_should_return_4() {
+        let input = "\
+COM)B
+B)C
+C)D
+D)E
+E)F
+B)G
+G)H
+D)I
+E)J
+J)K
+K)L
+K)YOU
+I)SAN";
+
+        let orbits = parse_orbits_part_two(&input);
+
+        assert_eq!(4, part_two(&orbits));
     }
 }
