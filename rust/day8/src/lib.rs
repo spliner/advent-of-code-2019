@@ -26,14 +26,17 @@ impl Layer {
 
 pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
     let input = fs::read_to_string(config.filename)?;
+    let layers = parse_layers(&input, 25, 6);
 
     match config.part {
         config::Part::PartOne => {
-            let layers = parse_layers(&input, 25, 6);
             println!("{}", part_one(&layers));
         }
         config::Part::PartTwo => {
-            // TODO: Part two
+            let image = part_two(&layers);
+            for row in image {
+                println!("{}", row);
+            }
         }
     }
 
@@ -79,6 +82,44 @@ fn part_one(layers: &Vec<Layer>) -> usize {
     least_zeroes.count_digit(1) * least_zeroes.count_digit(2)
 }
 
+fn part_two(layers: &Vec<Layer>) -> Vec<String> {
+    let mut result = Vec::new();
+
+    let first_layer = &layers[0];
+
+    for row in &first_layer.rows {
+        result.push(row.clone());
+    }
+
+    for layer in layers.iter().skip(1) {
+        for y in 0..layer.rows.len() {
+            let row = &layer.rows[y];
+            for x in 0..row.len() {
+                let current_digit = &result[y][x];
+                if *current_digit != 2 {
+                    continue;
+                }
+
+                result[y][x] = layer.rows[y][x].clone();
+            }
+        }
+    }
+
+    result.iter()
+        .map(|r| {
+            r.iter()
+                .map(|i| {
+                    if *i == 0 {
+                        " "
+                    } else {
+                        "*"
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,5 +138,13 @@ mod tests {
         assert_eq!(2, layers[1].rows.len());
         assert_eq!(vec![7, 8, 9], layers[1].rows[0]);
         assert_eq!(vec![0, 1, 2], layers[1].rows[1]);
+    }
+
+    #[test]
+    fn part_two_test() {
+        let layers = parse_layers("0222112222120000", 2, 2);
+        let result = part_two(&layers);
+        assert_eq!(" *", result[0]);
+        assert_eq!("* ", result[1]);
     }
 }
