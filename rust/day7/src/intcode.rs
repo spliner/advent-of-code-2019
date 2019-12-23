@@ -41,8 +41,8 @@ impl Intcode {
         }
     }
 
-    pub fn halted(&self) -> &bool {
-        &self.halted
+    pub fn halted(&self) -> bool {
+        self.halted
     }
 
     pub fn set_input(&mut self, input: i32) {

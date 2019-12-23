@@ -57,11 +57,6 @@ fn part_one(program: &Vec<i32>) -> Result<i32, String> {
     Ok(max_signal)
 }
 
-// TODO: Part 2
-fn part_two(_program: &Vec<i32>) -> Result<Option<i32>, String> {
-    Ok(None)
-}
-
 fn calculate_signal(program: &Vec<i32>, phase_settings: &Vec<i32>) -> Result<i32, String> {
     let mut current_input = 0;
 
@@ -79,6 +74,65 @@ fn calculate_signal(program: &Vec<i32>, phase_settings: &Vec<i32>) -> Result<i32
             Some(o) => o,
             None => current_input,
         };
+    }
+
+    Ok(current_input)
+}
+
+fn part_two(program: &Vec<i32>) -> Result<i32, String> {
+    let mut max_signal = 0;
+
+    for a in 5..=9 {
+        for b in 5..=9 {
+            for c in 5..=9 {
+                for d in 5..=9 {
+                    for e in 5..=9 {
+                        let phase_settings = vec![a, b, c, d, e];
+                        // Ensure values are distinct
+                        // TODO: Surely there's a better way to do this
+                        let phase_set: HashSet<&i32> = HashSet::from_iter(phase_settings.iter());
+                        if phase_set.len() != phase_settings.len() {
+                            continue;
+                        }
+
+                        let result = calculate_signal_feedback(program, &phase_settings)?;
+                        if result > max_signal {
+                            max_signal = result;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(max_signal)
+}
+
+fn calculate_signal_feedback(program: &Vec<i32>, phase_settings: &Vec<i32>) -> Result<i32, String> {
+    let mut intcodes = phase_settings
+        .iter()
+        .map(|s| {
+            let mut intcode = Intcode::new(program);
+            intcode.set_input(s.clone());
+            intcode.compute().unwrap();
+            intcode
+        })
+        .collect::<Vec<Intcode>>();
+
+    let mut i = 0;
+    let mut current_input = 0;
+    loop {
+        let intcode = &mut intcodes[i];
+        intcode.set_input(current_input);
+        intcode.compute()?;
+
+        current_input = intcode.last_output().unwrap();
+
+        if i == phase_settings.len() - 1 && intcode.halted() {
+            break;
+        }
+
+        i = (i + 1) % phase_settings.len();
     }
 
     Ok(current_input)
@@ -147,5 +201,34 @@ mod tests {
         ];
 
         assert_eq!(Ok(65210), part_one(&program));
+    }
+
+    #[test]
+    fn signal_feedback_1() {
+        let program = vec![
+            3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28, -1,
+            28, 1005, 28, 6, 99, 0, 0, 5,
+        ];
+        let phase_settings = vec![9, 8, 7, 6, 5];
+
+        assert_eq!(
+            Ok(139629729),
+            calculate_signal_feedback(&program, &phase_settings)
+        );
+    }
+
+    #[test]
+    fn signal_feedback_2() {
+        let program = vec![
+            3, 52, 1001, 52, -5, 52, 3, 53, 1, 52, 56, 54, 1007, 54, 5, 55, 1005, 55, 26, 1001, 54,
+            -5, 54, 1105, 1, 12, 1, 53, 54, 53, 1008, 54, 0, 55, 1001, 55, 1, 55, 2, 53, 55, 53, 4,
+            53, 1001, 56, -1, 56, 1005, 56, 6, 99, 0, 0, 0, 0, 10,
+        ];
+        let phase_settings = vec![9, 7, 8, 5, 6];
+
+        assert_eq!(
+            Ok(18216),
+            calculate_signal_feedback(&program, &phase_settings)
+        );
     }
 }
