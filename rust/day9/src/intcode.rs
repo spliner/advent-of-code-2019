@@ -4,6 +4,7 @@ use std::clone::Clone;
 enum ParameterMode {
     Position,
     Immediate,
+    Relative,
 }
 
 #[derive(Debug, PartialEq)]
@@ -16,26 +17,29 @@ enum Opcode {
     JumpIfFalse,
     LessThan,
     Equals,
+    SetRelativeBase,
     Halt,
 }
 
 #[derive(Debug)]
 pub struct Intcode {
     halted: bool,
-    initial_program: Vec<i32>,
-    current_state: Vec<i32>,
+    initial_program: Vec<i64>,
+    current_state: Vec<i64>,
     current_position: usize,
-    pub input: Option<i32>,
-    outputs: Vec<i32>,
+    relative_base: usize,
+    input: Option<i64>,
+    outputs: Vec<i64>,
 }
 
 impl Intcode {
-    pub fn new(program: &Vec<i32>) -> Self {
+    pub fn new(program: &Vec<i64>) -> Self {
         Self {
             halted: false,
             initial_program: program.clone(),
             current_state: program.clone(),
             current_position: 0,
+            relative_base: 0,
             input: None,
             outputs: Vec::new(),
         }
@@ -45,15 +49,15 @@ impl Intcode {
         self.halted
     }
 
-    pub fn set_input(&mut self, input: i32) {
+    pub fn set_input(&mut self, input: i64) {
         self.input = Some(input);
     }
 
-    pub fn outputs(&self) -> &Vec<i32> {
+    pub fn outputs(&self) -> &Vec<i64> {
         &self.outputs
     }
 
-    pub fn last_output(&self) -> Option<i32> {
+    pub fn last_output(&self) -> Option<i64> {
         if self.outputs.len() > 0 {
             Some(self.outputs[self.outputs.len() - 1])
         } else {
@@ -61,44 +65,73 @@ impl Intcode {
         }
     }
 
-    pub fn current_state(&self) -> &Vec<i32> {
+    pub fn current_state(&self) -> &Vec<i64> {
         &self.current_state
+    }
+
+    fn get(&mut self, index: usize) -> i64 {
+        self.ensure_index(index);
+
+        self.current_state[index]
+    }
+
+    fn set(&mut self, index: usize, value: i64) {
+        self.ensure_index(index);
+
+        self.current_state[index] = value;
+    }
+
+    fn get_parameter(&mut self, index: usize, mode: &ParameterMode) -> i64 {
+        let index = match mode {
+            ParameterMode::Position => {
+                self.get(index) as usize
+            }
+            ParameterMode::Relative => {
+                let absolute_index = self.get(index) as usize;
+                absolute_index + self.relative_base
+            }
+            ParameterMode::Immediate => index,
+        };
+
+        self.get(index)
+    }
+
+    fn ensure_index(&mut self, index: usize) {
+        for _ in self.current_state.len()..index + 1 {
+            self.current_state.push(0);
+        }
     }
 
     pub fn compute(&mut self) -> Result<(), String> {
         while self.current_position < self.current_state.len() && !self.halted {
-            let operation = self.current_state[self.current_position];
+            let operation = self.get(self.current_position);
             let (opcode, first_mode, second_mode, _third_mode) = parse_operation(operation)?;
 
             match opcode {
                 Opcode::Add => {
-                    let first_parameter =
-                        get_parameter(self.current_position + 1, &first_mode, &self.current_state);
-                    let second_parameter =
-                        get_parameter(self.current_position + 2, &second_mode, &self.current_state);
-                    let result_index = self.current_state[self.current_position + 3] as usize;
+                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
+                    let result_index = self.get(self.current_position + 3) as usize;
 
-                    self.current_state[result_index] = first_parameter + second_parameter;
+                    self.set(result_index, first_parameter + second_parameter);
 
                     self.current_position += 4;
                 }
                 Opcode::Multiply => {
-                    let first_parameter =
-                        get_parameter(self.current_position + 1, &first_mode, &self.current_state);
-                    let second_parameter =
-                        get_parameter(self.current_position + 2, &second_mode, &self.current_state);
-                    let result_index = self.current_state[self.current_position + 3] as usize;
+                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
+                    let result_index = self.get(self.current_position + 3) as usize;
 
-                    self.current_state[result_index] = first_parameter * second_parameter;
+                    self.set(result_index, first_parameter * second_parameter);
 
                     self.current_position += 4;
                 }
                 Opcode::Set => {
-                    let result_index = self.current_state[self.current_position + 1] as usize;
+                    let result_index = self.get(self.current_position + 1) as usize;
 
                     match self.input {
                         Some(i) => {
-                            self.current_state[result_index] = i;
+                            self.set(result_index, i);
                             self.input = None;
                             self.current_position += 2;
                         }
@@ -110,10 +143,16 @@ impl Intcode {
                 Opcode::Output => {
                     let value = match first_mode {
                         ParameterMode::Position => {
-                            let index = self.current_state[self.current_position + 1] as usize;
-                            self.current_state[index]
+                            let index = self.get(self.current_position + 1) as usize;
+                            self.get(index)
                         }
-                        ParameterMode::Immediate => self.current_state[self.current_position + 1],
+                        ParameterMode::Relative => {
+                            let absolute_index = self.get(self.current_position + 1);
+                            let index = absolute_index + self.relative_base as i64;
+
+                            self.get(index as usize)
+                        }
+                        ParameterMode::Immediate => self.get(self.current_position + 1),
                     };
 
                     self.outputs.push(value);
@@ -121,10 +160,8 @@ impl Intcode {
                     self.current_position += 2;
                 }
                 Opcode::JumpIfTrue => {
-                    let first_parameter =
-                        get_parameter(self.current_position + 1, &first_mode, &self.current_state);
-                    let second_parameter =
-                        get_parameter(self.current_position + 2, &second_mode, &self.current_state);
+                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
 
                     if first_parameter != 0 {
                         self.current_position = second_parameter as usize;
@@ -133,10 +170,8 @@ impl Intcode {
                     }
                 }
                 Opcode::JumpIfFalse => {
-                    let first_parameter =
-                        get_parameter(self.current_position + 1, &first_mode, &self.current_state);
-                    let second_parameter =
-                        get_parameter(self.current_position + 2, &second_mode, &self.current_state);
+                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
 
                     if first_parameter == 0 {
                         self.current_position = second_parameter as usize;
@@ -145,11 +180,9 @@ impl Intcode {
                     }
                 }
                 Opcode::LessThan => {
-                    let first_parameter =
-                        get_parameter(self.current_position + 1, &first_mode, &self.current_state);
-                    let second_parameter =
-                        get_parameter(self.current_position + 2, &second_mode, &self.current_state);
-                    let result_index = self.current_state[self.current_position + 3] as usize;
+                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
+                    let result_index = self.get(self.current_position) as usize;
 
                     let value = if first_parameter < second_parameter {
                         1
@@ -157,16 +190,14 @@ impl Intcode {
                         0
                     };
 
-                    self.current_state[result_index] = value;
+                    self.set(result_index, value);
 
                     self.current_position += 4;
                 }
                 Opcode::Equals => {
-                    let first_parameter =
-                        get_parameter(self.current_position + 1, &first_mode, &self.current_state);
-                    let second_parameter =
-                        get_parameter(self.current_position + 2, &second_mode, &self.current_state);
-                    let result_index = self.current_state[self.current_position + 3] as usize;
+                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
+                    let result_index = self.get(self.current_position + 3) as usize;
 
                     let value = if first_parameter == second_parameter {
                         1
@@ -174,9 +205,15 @@ impl Intcode {
                         0
                     };
 
-                    self.current_state[result_index] = value;
+                    self.set(result_index, value);
 
                     self.current_position += 4;
+                }
+                Opcode::SetRelativeBase => {
+                    let new_base = self.get_parameter(self.current_position + 1, &first_mode);
+                    self.relative_base += new_base as usize;
+
+                    self.current_position += 2;
                 }
                 Opcode::Halt => {
                     self.halted = true;
@@ -189,7 +226,7 @@ impl Intcode {
 }
 
 fn parse_operation(
-    operation: i32,
+    operation: i64,
 ) -> Result<(Opcode, ParameterMode, ParameterMode, ParameterMode), String> {
     let opcode = parse_opcode(operation % 100)?;
     let first_parameter_mode = parse_mode(operation / 100 % 10)?;
@@ -204,7 +241,7 @@ fn parse_operation(
     ))
 }
 
-fn parse_opcode(opcode: i32) -> Result<Opcode, String> {
+fn parse_opcode(opcode: i64) -> Result<Opcode, String> {
     match opcode % 100 {
         1 => Ok(Opcode::Add),
         2 => Ok(Opcode::Multiply),
@@ -214,26 +251,18 @@ fn parse_opcode(opcode: i32) -> Result<Opcode, String> {
         6 => Ok(Opcode::JumpIfFalse),
         7 => Ok(Opcode::LessThan),
         8 => Ok(Opcode::Equals),
+        9 => Ok(Opcode::SetRelativeBase),
         99 => Ok(Opcode::Halt),
         _ => Err(format!("Invalid opcode: {}", opcode)),
     }
 }
 
-fn parse_mode(mode: i32) -> Result<ParameterMode, String> {
+fn parse_mode(mode: i64) -> Result<ParameterMode, String> {
     match mode {
         0 => Ok(ParameterMode::Position),
         1 => Ok(ParameterMode::Immediate),
+        2 => Ok(ParameterMode::Relative),
         _ => Err(format!("Invalid param mode: {}", mode)),
-    }
-}
-
-fn get_parameter(index: usize, mode: &ParameterMode, program: &Vec<i32>) -> i32 {
-    match mode {
-        ParameterMode::Position => {
-            let index = program[index] as usize;
-            program[index]
-        }
-        ParameterMode::Immediate => program[index],
     }
 }
 
@@ -330,5 +359,34 @@ mod tests {
         let expected = vec![1002, 4, 3, 4, 99];
 
         assert_eq!(&expected, intcode.current_state());
+    }
+
+    #[test]
+    fn relative_mode_test_1() {
+        let program = vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+        let mut intcode = Intcode::new(&program);
+        intcode.compute().unwrap();
+
+        assert_eq!(&program, intcode.outputs());
+    }
+
+    #[test]
+    fn relative_mode_test_2() {
+        let program = vec![104i64, 1125899906842624, 99];
+        let mut intcode = Intcode::new(&program);
+        intcode.compute().unwrap();
+
+        assert_eq!(1125899906842624, intcode.last_output().unwrap());
+    }
+
+    #[test]
+    fn relative_mode_test_3() {
+        let program = vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0];
+        let mut intcode = Intcode::new(&program);
+        intcode.compute().unwrap();
+
+        assert_eq!(16, intcode.last_output().unwrap().to_string().len());
     }
 }

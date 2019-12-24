@@ -1,18 +1,22 @@
 use std::error::Error;
 use std::fs;
 
+use intcode::Intcode;
+
 pub mod config;
 pub mod intcode;
 
 pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
-    let _program: Vec<i32> = fs::read_to_string(config.filename)?
+    let program: Vec<i64> = fs::read_to_string(config.filename)?
         .split(",")
-        .map(|s| s.trim().parse::<i32>().unwrap())
+        .map(|s| s.trim().parse::<i64>().unwrap())
         .collect();
 
     match config.part {
         config::Part::PartOne => {
-            // TODO: Part one
+            let mut intcode = Intcode::new(&program);
+            intcode.compute()?;
+            println!("{:?}", intcode.outputs());
         }
         config::Part::PartTwo => {
             // TODO: Part two
