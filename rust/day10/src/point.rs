@@ -1,7 +1,7 @@
 use std::cmp::max;
 use std::collections::HashSet;
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct Point {
     x: isize,
     y: isize,
