@@ -172,6 +172,7 @@ mod tests {
 ....#
 ...##";
         let map = parse_input(input);
+
         let expected: HashSet<Position> = HashSet::from_iter(vec![
             Position::new(1, 0, false),
             Position::new(4, 0, false),
