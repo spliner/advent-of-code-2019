@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fs;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use core::fmt;
 
@@ -69,6 +69,18 @@ impl Map {
 
         height.abs()
     }
+
+    fn occupied_positions(&self) -> HashSet<&Position> {
+        self.positions.iter()
+            .filter_map(|(_, p)| {
+                if p.is_empty {
+                    None
+                } else {
+                    Some(p)
+                }
+            })
+            .collect()
+    }
 }
 
 impl Display for Map {
@@ -130,15 +142,13 @@ fn parse_input(input: &str) -> Map {
         y += 1;
     }
 
-    println!("{}", map.width());
-    println!("{}", map.height());
-
     map
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::iter::FromIterator;
 
     #[test]
     fn display_map() {
@@ -151,5 +161,33 @@ mod tests {
         let map = parse_input(input);
 
         assert_eq!(input, map.to_string().trim());
+    }
+
+    #[test]
+    fn occupied_positions() {
+        let input = "\
+.#..#
+.....
+#####
+....#
+...##";
+        let map = parse_input(input);
+        let expected: HashSet<Position> = HashSet::from_iter(vec![
+            Position::new(1, 0, false),
+            Position::new(4, 0, false),
+
+            Position::new(0, 2, false),
+            Position::new(1, 2, false),
+            Position::new(2, 2, false),
+            Position::new(3, 2, false),
+            Position::new(4, 2, false),
+
+            Position::new(4, 3, false),
+
+            Position::new(3, 4, false),
+            Position::new(4, 4, false),
+        ]);
+
+        assert_eq!(expected.iter().collect::<HashSet<&Position>>(), map.occupied_positions());
     }
 }
