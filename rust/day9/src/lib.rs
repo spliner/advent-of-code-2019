@@ -15,11 +15,15 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
     match config.part {
         config::Part::PartOne => {
             let mut intcode = Intcode::new(&program);
+            intcode.set_input(1);
             intcode.compute()?;
             println!("{:?}", intcode.outputs());
         }
         config::Part::PartTwo => {
-            // TODO: Part two
+            let mut intcode = Intcode::new(&program);
+            intcode.set_input(2);
+            intcode.compute()?;
+            println!("{:?}", intcode.outputs());
         }
     }
 

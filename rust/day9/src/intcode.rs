@@ -78,6 +78,8 @@ impl Intcode {
     fn set(&mut self, index: usize, value: i64) {
         self.ensure_index(index);
 
+        println!("Setting {} in {}", value, index);
+
         self.current_state[index] = value;
     }
 
@@ -87,8 +89,10 @@ impl Intcode {
                 self.get(index) as usize
             }
             ParameterMode::Relative => {
-                let absolute_index = self.get(index) as usize;
-                absolute_index + self.relative_base
+                let absolute_index = self.get(index);
+                let base = self.relative_base as i64;
+                let relative_index = absolute_index + base;
+                relative_index as usize
             }
             ParameterMode::Immediate => index,
         };
@@ -102,35 +106,67 @@ impl Intcode {
         }
     }
 
+    fn get_result_index(&mut self, index: usize, mode: &ParameterMode) -> usize {
+        match mode {
+            ParameterMode::Relative => {
+                let absolute_index = self.get(index);
+                let relative_index = absolute_index + self.relative_base as i64;
+                relative_index as usize
+            }
+            _ => self.get(index) as usize
+        }
+    }
+
     pub fn compute(&mut self) -> Result<(), String> {
         while self.current_position < self.current_state.len() && !self.halted {
             let operation = self.get(self.current_position);
-            let (opcode, first_mode, second_mode, _third_mode) = parse_operation(operation)?;
+            println!("Loop => {} ({})", operation, self.current_position);
+            let (opcode, first_mode, second_mode, third_mode) = parse_operation(operation)?;
 
             match opcode {
                 Opcode::Add => {
-                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
-                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
-                    let result_index = self.get(self.current_position + 3) as usize;
+                    println!("Add");
 
-                    self.set(result_index, first_parameter + second_parameter);
+                    let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    println!("Param 1: {} (from {})", first_parameter, self.current_position + 1);
+
+                    let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
+                    println!("Param 2: {} (from {})", second_parameter, self.current_position + 2);
+
+                    let result_index = self.get_result_index(self.current_position + 3, &third_mode);
+                    println!("Storing {} in {} (from {})", first_parameter + second_parameter, result_index, self.current_position + 3);
+                    println!(" ");
+
+                    if result_index < 0 {
+                        panic!("noob");
+                    }
+
+                    self.set(result_index as usize, first_parameter + second_parameter);
 
                     self.current_position += 4;
                 }
                 Opcode::Multiply => {
                     let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
                     let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
-                    let result_index = self.get(self.current_position + 3) as usize;
+                    let result_index = self.get_result_index(self.current_position + 3, &third_mode);
 
-                    self.set(result_index, first_parameter * second_parameter);
+                    println!("Multiply");
+                    println!("Param 1: {} (from {})", first_parameter, self.current_position + 1);
+                    println!("Param 2: {} (from {})", second_parameter, self.current_position + 2);
+                    println!("Storing {} in {} (from {})", first_parameter * second_parameter, result_index, self.current_position + 3);
+                    println!(" ");
+
+                    self.set(result_index as usize, first_parameter * second_parameter);
 
                     self.current_position += 4;
                 }
                 Opcode::Set => {
-                    let result_index = self.get(self.current_position + 1) as usize;
+                    let result_index = self.get_result_index(self.current_position + 1, &first_mode);
 
                     match self.input {
                         Some(i) => {
+                            println!("Setting {} in {}", i, result_index);
+                            println!(" ");
                             self.set(result_index, i);
                             self.input = None;
                             self.current_position += 2;
@@ -155,6 +191,10 @@ impl Intcode {
                         ParameterMode::Immediate => self.get(self.current_position + 1),
                     };
 
+                    println!("Output");
+                    println!("{}", value);
+                    println!(" ");
+
                     self.outputs.push(value);
 
                     self.current_position += 2;
@@ -163,32 +203,53 @@ impl Intcode {
                     let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
                     let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
 
+                    println!("JumpIfTrue");
+                    println!("Param 1: {} (from {})", first_parameter, self.current_position + 1);
+                    println!("Param 2: {} (from {})", second_parameter, self.current_position + 2);
+
                     if first_parameter != 0 {
                         self.current_position = second_parameter as usize;
+                        println!("Jumping to: {}", self.current_position);
                     } else {
                         self.current_position += 3;
+                        println!("New position: {}", self.current_position);
                     }
+
+                    println!(" ");
                 }
                 Opcode::JumpIfFalse => {
+                    println!("JumpIfFalse");
                     let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
+                    println!("Param 1: {} (from {})", first_parameter, self.current_position + 1);
+
                     let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
+                    println!("Param 2: {} (from {})", second_parameter, self.current_position + 2);
 
                     if first_parameter == 0 {
                         self.current_position = second_parameter as usize;
                     } else {
                         self.current_position += 3;
                     }
+
+                    println!("New position: {}", self.current_position);
+                    println!(" ");
                 }
                 Opcode::LessThan => {
                     let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
                     let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
-                    let result_index = self.get(self.current_position) as usize;
+                    let result_index = self.get_result_index(self.current_position + 3, &third_mode);
 
                     let value = if first_parameter < second_parameter {
                         1
                     } else {
                         0
                     };
+
+                    println!("LessThan");
+                    println!("Param 1: {} (from {})", first_parameter, self.current_position + 1);
+                    println!("Param 2: {} (from {})", second_parameter, self.current_position + 2);
+                    println!("Storing {} in {}", value, result_index);
+                    println!(" ");
 
                     self.set(result_index, value);
 
@@ -197,7 +258,7 @@ impl Intcode {
                 Opcode::Equals => {
                     let first_parameter = self.get_parameter(self.current_position + 1, &first_mode);
                     let second_parameter = self.get_parameter(self.current_position + 2, &second_mode);
-                    let result_index = self.get(self.current_position + 3) as usize;
+                    let result_index = self.get_result_index(self.current_position + 3, &third_mode);
 
                     let value = if first_parameter == second_parameter {
                         1
@@ -207,15 +268,30 @@ impl Intcode {
 
                     self.set(result_index, value);
 
+                    println!("Equals");
+                    println!("Param 1: {} (from {})", first_parameter, self.current_position + 1);
+                    println!("Param 2: {} (from {})", second_parameter, self.current_position + 2);
+                    println!("Storing {} in {}", value, result_index);
+                    println!(" ");
+
                     self.current_position += 4;
                 }
                 Opcode::SetRelativeBase => {
-                    let new_base = self.get_parameter(self.current_position + 1, &first_mode);
-                    self.relative_base += new_base as usize;
+                    println!("SetRelativeBase");
+                    let base_adjustment = self.get_parameter(self.current_position + 1, &first_mode);
+                    println!("Adding {} to relative base (from {})", base_adjustment, self.current_position + 1);
+
+                    let current_base = self.relative_base as i64;
+                    let new_base = current_base + base_adjustment;
+
+                    self.relative_base = new_base as usize;
+                    println!("New base: {}", self.relative_base);
+                    println!(" ");
 
                     self.current_position += 2;
                 }
                 Opcode::Halt => {
+                    println!("Halt");
                     self.halted = true;
                 }
             };
