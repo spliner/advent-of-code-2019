@@ -3,6 +3,7 @@ use std::fs;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use core::fmt;
+use std::iter::FromIterator;
 
 pub mod config;
 pub mod point;
@@ -97,7 +98,7 @@ impl Display for Map {
                 }
             }
 
-            writeln!(f, "{}", line);
+            writeln!(f, "{}", line)?;
         }
 
         Ok(())
@@ -109,8 +110,9 @@ pub fn run(config: config::Config) -> Result<(), Box<dyn Error>> {
 
     match config.part {
         config::Part::PartOne => {
-            let _map = parse_input(&input);
-            // TODO: Part one
+            let map = parse_input(&input);
+            let result = part_one(&map);
+            println!("{}", result);
         }
         config::Part::PartTwo => {
             // TODO: Part two
@@ -131,7 +133,7 @@ fn parse_input(input: &str) -> Map {
         let chars = line.chars();
 
         for c in chars {
-            let is_empty = c != '#';
+            let is_empty = c == '.';
             let position = Position::new(x, y, is_empty);
 
             map.add(position);
@@ -143,6 +145,61 @@ fn parse_input(input: &str) -> Map {
     }
 
     map
+}
+
+fn part_one(map: &Map) -> isize {
+    let mut max = 0;
+    let occupied_positions = map.occupied_positions();
+    let asteroid_positions = Vec::from_iter(occupied_positions.iter());
+
+    for i in 0..asteroid_positions.len() {
+        let mut count = 0;
+
+        let position = &asteroid_positions[i];
+        for other_position in asteroid_positions.iter().filter(|&p| p != position) {
+            let is_in_sight = is_in_sight(position, other_position, &occupied_positions);
+
+            if is_in_sight {
+                count += 1;
+            }
+        }
+
+        if count > max {
+            max = count;
+        }
+    }
+
+    max
+}
+
+fn is_in_sight(p1: &Position, p2: &Position, occupied_positions: &HashSet<&Position>) -> bool {
+    let line = point::Point::line(&p1.point, &p2.point);
+    // Filter p1 and p2 out of line
+    let line = line
+        .iter()
+        .filter(|&p| !p.equal_to_point(&p1.point) && !p.equal_to_point(&p2.point))
+        .map(|p| p.clone())
+        .collect::<Vec<point::FuzzyPoint>>();
+
+    // Filter p1 and p2 out of occupied positions
+    let occupied_positions = occupied_positions
+        .iter()
+        .filter_map(|p| {
+            if p == &p1 || p == &p2 {
+                None
+            } else {
+                Some(point::FuzzyPoint::from_point(&p.point))
+            }
+        })
+        .collect::<Vec<point::FuzzyPoint>>();
+
+    for p in line {
+        if occupied_positions.contains(&p) {
+            return false;
+        }
+    }
+
+    true
 }
 
 #[cfg(test)]
@@ -190,5 +247,138 @@ mod tests {
         ]);
 
         assert_eq!(expected.iter().collect::<HashSet<&Position>>(), map.occupied_positions());
+    }
+
+    #[test]
+    fn part_one_example_one_should_return_8() {
+        let input = "\
+.#..#
+.....
+#####
+....#
+...##";
+        let map = parse_input(input);
+
+        assert_eq!(8, part_one(&map));
+    }
+
+    #[test]
+    fn part_one_example_two_should_return_33() {
+        let input = "\
+......#.#.
+#..#.#....
+..#######.
+.#.#.###..
+.#..#.....
+..#....#.#
+#..#....#.
+.##.#..###
+##...#..#.
+.#....####";
+        let map = parse_input(input);
+
+        assert_eq!(33, part_one(&map));
+    }
+
+    #[test]
+    fn part_one_example_three_should_return_35() {
+        let input = "\
+#.#...#.#.
+.###....#.
+.#....#...
+##.#.#.#.#
+....#.#.#.
+.##..###.#
+..#...##..
+..##....##
+......#...
+.####.###.";
+        let map = parse_input(input);
+
+        assert_eq!(35, part_one(&map));
+    }
+
+    #[test]
+    fn is_in_sight_uppercase_a_should_be_true() {
+        let input = "\
+#.........
+...A......
+...B..a...
+.EDCG....a
+..F.c.b...
+.....c....
+..efd.c.gb
+.......c..
+....f...c.
+...e..d..c";
+        let map = parse_input(input);
+
+        let origin = Position::new(0, 0, false);
+        let test = Position::new(3, 1, false);
+
+        assert_eq!(true, is_in_sight(&origin, &test, &map.occupied_positions()));
+    }
+
+    #[test]
+    fn is_in_sight_first_lowercase_a_should_be_false() {
+        let input = "\
+#.........
+...A......
+...B..a...
+.EDCG....a
+..F.c.b...
+.....c....
+..efd.c.gb
+.......c..
+....f...c.
+...e..d..c";
+        let map = parse_input(input);
+
+        let origin = Position::new(0, 0, false);
+        let test = Position::new(6, 2, false);
+
+        assert_eq!(false, is_in_sight(&origin, &test, &map.occupied_positions()));
+    }
+
+    #[test]
+    fn is_in_sight_second_lowercase_a_should_be_false() {
+        let input = "\
+#.........
+...A......
+...B..a...
+.EDCG....a
+..F.c.b...
+.....c....
+..efd.c.gb
+.......c..
+....f...c.
+...e..d..c";
+        let map = parse_input(input);
+
+        let origin = Position::new(0, 0, false);
+        let test = Position::new(9, 3, false);
+
+        assert_eq!(false, is_in_sight(&origin, &test, &map.occupied_positions()));
+    }
+
+    #[test]
+    fn is_in_sight_uppercase_g_should_be_true() {
+        let input = "\
+#.........
+...A......
+...B..a...
+.EDCG....a
+..F.c.b...
+.....c....
+..efd.c.gb
+.......c..
+....f...c.
+...e..d..c";
+        let map = parse_input(input);
+
+        let origin = Position::new(0, 0, false);
+        let test = Position::new(4, 3, false);
+
+        assert_eq!(true, is_in_sight(&origin, &test, &map.occupied_positions()));
     }
 }

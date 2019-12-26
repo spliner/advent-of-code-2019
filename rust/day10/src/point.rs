@@ -1,5 +1,6 @@
+use core::fmt;
 use std::cmp::max;
-use std::collections::HashSet;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct Point {
@@ -7,13 +8,20 @@ pub struct Point {
     y: isize,
 }
 
+impl Display for Point {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)?;
+        Ok(())
+    }
+}
+
 impl Point {
     pub fn new(x: isize, y: isize) -> Self {
         Self { x, y }
     }
 
-    pub fn line(p1: &Point, p2: &Point) -> HashSet<Point> {
-        let mut points = HashSet::new();
+    pub fn line(p1: &Point, p2: &Point) -> Vec<FuzzyPoint> {
+        let mut points = Vec::new();
         let distance = Point::diagonal_distance(p1, p2);
 
         for step in 0..=distance {
@@ -24,9 +32,7 @@ impl Point {
             };
 
             let (x, y) = Point::lerp_point(p1, p2, t);
-            let rounded_point = Point::round_point(x, y);
-
-            points.insert(rounded_point);
+            points.push(FuzzyPoint { x, y, });
         }
 
         points
@@ -39,6 +45,7 @@ impl Point {
         max(dx.abs(), dy.abs())
     }
 
+    #[allow(dead_code)]
     fn round_point(x: f64, y: f64) -> Point {
         Point::new(x.round() as isize, y.round() as isize)
     }
@@ -63,51 +70,38 @@ impl Point {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::iter::FromIterator;
+#[derive(Debug, PartialEq, Clone)]
+pub struct FuzzyPoint {
+    x: f64,
+    y: f64,
+}
 
-    #[test]
-    fn line_test_1() {
-        let p1 = Point::new(0, 0);
-        let p2 = Point::new(4, 0);
-
-        let expected = HashSet::from_iter(vec![
-            Point::new(0, 0),
-            Point::new(1, 0),
-            Point::new(2, 0),
-            Point::new(3, 0),
-            Point::new(4, 0),
-        ]);
-
-        assert_eq!(expected, Point::line(&p1, &p2));
+impl FuzzyPoint {
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
     }
 
-    #[test]
-    fn line_test_2() {
-        let p1 = Point::new(0, 0);
-        let p2 = Point::new(11, 4);
+    pub fn from_point(point: &Point) -> Self {
+        Self {
+            x: point.x() as f64,
+            y: point.y() as f64,
+        }
+    }
 
-        let expected = HashSet::from_iter(vec![
-            Point::new(0, 0),
-            Point::new(1, 0),
+    pub fn equal_to_point(&self, p: &Point) -> bool {
+        let floor_x = self.x.floor();
+        let floor_y = self.y.floor();
 
-            Point::new(2, 1),
-            Point::new(3, 1),
-            Point::new(4, 1),
+        let same_x = self.x == floor_x && floor_x as isize == p.x;
+        let same_y = self.y == floor_y && floor_y as isize == p.y;
 
-            Point::new(5, 2),
-            Point::new(6, 2),
+        same_x && same_y
+    }
+}
 
-            Point::new(7, 3),
-            Point::new(8, 3),
-            Point::new(9, 3),
-
-            Point::new(10, 4),
-            Point::new(11, 4),
-        ]);
-
-        assert_eq!(expected, Point::line(&p1, &p2));
+impl Display for FuzzyPoint {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)?;
+        Ok(())
     }
 }
